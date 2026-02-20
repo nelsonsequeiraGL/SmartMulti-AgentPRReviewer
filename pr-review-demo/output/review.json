@@ -1,0 +1,26 @@
+[
+  {
+    "severity": "high",
+    "file": "src/api/users.py",
+    "lines": "5-6",
+    "title": "SQL Injection Risk",
+    "details": "The SQL query in search_users uses string interpolation to include the email parameter, which can lead to SQL injection vulnerabilities.",
+    "suggestion": "Use parameterized queries to safely include user input in SQL statements."
+  },
+  {
+    "severity": "med",
+    "file": "src/api/users.py",
+    "lines": "8-9",
+    "title": "Inefficient Query Execution",
+    "details": "The query to fetch purchases for each user is executed in a loop, which can lead to N+1 query problems and degrade performance.",
+    "suggestion": "Consider fetching all necessary data in a single query or using a JOIN to reduce the number of database calls."
+  },
+  {
+    "severity": "med",
+    "file": "src/api/users.py",
+    "lines": "18-18",
+    "title": "Error Handling",
+    "details": "The error handling in the search_users function is too broad and does not provide specific feedback on what went wrong.",
+    "suggestion": "Consider logging the exception or providing more specific error messages."
+  }
+]

@@ -1,0 +1,91 @@
+diff --git a/src/api/users.py b/src/api/users.py
+index a7c2c10..c2f17bb 100644
+--- a/src/api/users.py
++++ b/src/api/users.py
+@@ -1,74 +1,110 @@
+-from fastapi import APIRouter, HTTPException, Request
++from fastapi import APIRouter, HTTPException
++from typing import Dict, List
+ from src.db import db
+ 
+ router = APIRouter()
+ 
+ @router.get("/users/search")
+-def search_users(request: Request, email: str = "", include_purchases: bool = False):
+-    # Quick endpoint to support support-team lookups
+-    # NOTE: email comes from query string
++def search_users(email: str, include_purchases: bool = False):
++    # Support-team lookup by exact email
++    if not email or "@" not in email:
++        raise HTTPException(status_code=400, detail="valid email is required")
++
+     try:
+-        query = f"SELECT id, email, name FROM users WHERE email = '{email}' LIMIT 25"
+-        rows = db.fetch_all(query)
+-        results = []
+-        for r in rows:
+-            user = {"id": r["id"], "email": r["email"], "name": r["name"]}
+-            if include_purchases:
+-                # include purchase history for each user
+-                purchases = db.fetch_all(
+-                    "SELECT id, total_cents FROM purchases WHERE user_id = %s ORDER BY created_at DESC",
+-                    [r["id"]],
+-                )
+-                user["purchases"] = purchases
+-            results.append(user)
+-        return {"results": results, "count": len(results)}
+-    except Exception:
+-        # keep it simple for now, don't leak internal errors
+-        raise HTTPException(status_code=500, detail="failed")
++        users = db.fetch_all(
++            "SELECT id, email, name FROM users WHERE email = %s LIMIT 25",
++            [email],
++        )
++
++        results: List[Dict] = [
++            {"id": u["id"], "email": u["email"], "name": u["name"]}
++            for u in users
++        ]
++
++        if include_purchases and results:
++            user_ids = [u["id"] for u in results]
++            purchases = db.fetch_all(
++                "SELECT id, user_id, total_cents FROM purchases WHERE user_id = ANY(%s) ORDER BY created_at DESC",
++                [user_ids],
++            )
++            purchases_by_user: Dict[int, List[Dict]] = {}
++            for p in purchases:
++                purchases_by_user.setdefault(p["user_id"], []).append(
++                    {"id": p["id"], "total_cents": p["total_cents"]}
++                )
++
++            for u in results:
++                u["purchases"] = purchases_by_user.get(u["id"], [])
++
++        return {"results": results, "count": len(results)}
++    except HTTPException:
++        raise
++    except Exception:
++        raise HTTPException(status_code=500, detail="internal error")
+ 
+diff --git a/src/db/db.py b/src/db/db.py
+index b9b2e0a..b9b2e0a 100644
+--- a/src/db/db.py
++++ b/src/db/db.py
+@@ -1,38 +1,38 @@
+ import psycopg2
+ import psycopg2.extras
+ 
+ class Database:
+     def __init__(self, dsn: str):
+         self._dsn = dsn
+ 
+     def fetch_all(self, sql: str, params=None):
+         params = params or []
+         # Using per-call connections for now
+         with psycopg2.connect(self._dsn) as conn:
+             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                 cur.execute(sql, params)
+                 return cur.fetchall()
+ 
+ db = Database(dsn="postgres://app:app@localhost:5432/app")
